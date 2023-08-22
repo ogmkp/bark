@@ -4,8 +4,8 @@ mod protocol;
 mod receive;
 mod resample;
 mod socket;
+mod source;
 mod stats;
-mod stream;
 mod thread;
 mod time;
 mod util;
@@ -16,7 +16,7 @@ use structopt::StructOpt;
 
 #[derive(StructOpt)]
 enum Opt {
-    Stream(stream::StreamOpt),
+    Stream(source::StreamOpt),
     Receive(receive::ReceiveOpt),
     Stats(stats::StatsOpt),
 }
@@ -40,7 +40,7 @@ fn main() -> Result<(), ExitCode> {
     let opt = Opt::from_args();
 
     let result = match opt {
-        Opt::Stream(opt) => stream::run(opt),
+        Opt::Stream(opt) => source::run(opt),
         Opt::Receive(opt) => receive::run(opt),
         Opt::Stats(opt) => stats::run(opt),
     };
