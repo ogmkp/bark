@@ -22,7 +22,7 @@ use crate::RunError;
 pub struct Receiver {
     opt: ReceiveOpt,
     stats: ReceiverStats,
-    stream: Option<Stream>,
+    stream: Option<Session>,
     queue: VecDeque<QueueEntry>,
 }
 
@@ -41,7 +41,7 @@ impl QueueEntry {
     }
 }
 
-struct Stream {
+struct Session {
     sid: SessionId,
     start_seq: u64,
     sync: bool,
@@ -51,11 +51,11 @@ struct Stream {
     clock_delta: Aggregate<ClockDelta>,
 }
 
-impl Stream {
+impl Session {
     pub fn start_from_packet(audio: &Audio) -> Self {
         let resampler = Resampler::new();
 
-        Stream {
+        Session {
             sid: audio.header().sid,
             start_seq: audio.header().seq,
             sync: false,
@@ -145,7 +145,7 @@ impl Receiver {
             if header.sid > stream.sid {
                 // new stream is taking over! switch over to it
                 println!("\nnew stream beginning");
-                self.stream = Some(Stream::start_from_packet(packet));
+                self.stream = Some(Session::start_from_packet(packet));
                 self.stats.clear();
                 self.queue.clear();
                 return true;
@@ -166,7 +166,7 @@ impl Receiver {
             if let Some(back) = self.queue.back() {
                 if back.seq + self.opt.max_seq_gap as u64 <= header.seq {
                     println!("\nreceived packet with seq too far in future, resetting stream");
-                    self.stream = Some(Stream::start_from_packet(packet));
+                    self.stream = Some(Session::start_from_packet(packet));
                     self.stats.clear();
                     self.queue.clear();
                 }
@@ -174,7 +174,7 @@ impl Receiver {
 
             true
         } else {
-            self.stream = Some(Stream::start_from_packet(packet));
+            self.stream = Some(Session::start_from_packet(packet));
             self.stats.clear();
             true
         }
