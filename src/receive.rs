@@ -251,7 +251,7 @@ impl Receiver {
             return;
         };
 
-        let real_ts_after_fill = pts.add(SampleDuration::from_buffer_offset(data.len()));
+        let real_ts_after_fill = pts + SampleDuration::from_buffer_offset(data.len());
 
         // sync up to stream if necessary:
         if !stream.sync {
@@ -338,7 +338,7 @@ impl Receiver {
             data = &mut data[result.output_written.as_buffer_offset()..];
             front.consumed = front.consumed.add(result.input_read);
 
-            stream_ts = front.pts.map(|front_pts| front_pts.add(front.consumed));
+            stream_ts = front.pts.map(|front_pts| front_pts + front.consumed);
 
             // pop packet if fully consumed
             if front.consumed == SampleDuration::ONE_PACKET {
@@ -516,7 +516,7 @@ pub fn run(opt: ReceiveOpt) -> Result<(), RunError> {
                 let output_latency = SampleDuration::from_std_duration_lossy(output_latency);
 
                 let now = Timestamp::now();
-                let pts = now.add(output_latency);
+                let pts = now + output_latency;
 
                 let mut state = state.lock().unwrap();
                 state.recv.fill_stream_buffer(data, pts);

@@ -1,3 +1,5 @@
+use std::ops::{Add, AddAssign};
+
 use crate::protocol;
 use crate::protocol::packet;
 use crate::protocol::types::TimestampMicros;
@@ -29,10 +31,6 @@ impl Timestamp {
         Timestamp(ts)
     }
 
-    pub fn add(&self, duration: SampleDuration) -> Timestamp {
-        Timestamp(self.0.checked_add(duration.0).unwrap())
-    }
-
     pub fn duration_since(&self, other: Timestamp) -> SampleDuration {
         SampleDuration(self.0.checked_sub(other.0).unwrap())
     }
@@ -45,6 +43,20 @@ impl Timestamp {
 
     pub fn adjust(&self, delta: TimestampDelta) -> Timestamp {
         Timestamp(self.0.checked_add_signed(delta.0).unwrap())
+    }
+}
+
+impl Add<SampleDuration> for Timestamp {
+    type Output = Timestamp;
+
+    fn add(self, duration: SampleDuration) -> Timestamp {
+        Timestamp(self.0.checked_add(duration.0).unwrap())
+    }
+}
+
+impl AddAssign<SampleDuration> for Timestamp {
+    fn add_assign(&mut self, duration: SampleDuration) {
+        *self = self.add(duration)
     }
 }
 

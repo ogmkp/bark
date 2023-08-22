@@ -208,7 +208,7 @@ impl AudioWriter {
         &mut self.packet.buffer_mut()[offset..]
     }
 
-    pub fn valid_length(&self) -> bool {
+    pub fn full(&self) -> bool {
         self.remaining() == SampleDuration::zero()
     }
 
@@ -227,7 +227,7 @@ impl AudioWriter {
     }
 
     pub fn finalize(mut self, header: AudioPacketHeader) -> Audio {
-        if !self.valid_length() {
+        if !self.full() {
             panic!("into_audio_packet called on writer with invalid length");
         }
 

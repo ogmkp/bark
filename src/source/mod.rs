@@ -1,3 +1,5 @@
+mod encode;
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -6,9 +8,10 @@ use cpal::InputCallbackInfo;
 use structopt::StructOpt;
 
 use crate::protocol::{self, Protocol};
-use crate::protocol::packet::{self, Audio, StatsReply, PacketKind};
-use crate::protocol::types::{TimestampMicros, AudioPacketHeader, SessionId, ReceiverId, TimePhase};
+use crate::protocol::packet::{self, StatsReply, PacketKind};
+use crate::protocol::types::{TimestampMicros, SessionId, ReceiverId, TimePhase};
 use crate::socket::{Socket, SocketOpt};
+use crate::source::encode::{PcmFloat32, Encoder};
 use crate::stats::node::NodeStats;
 use crate::time::{SampleDuration, Timestamp};
 use crate::util;
@@ -56,20 +59,13 @@ pub fn run(opt: StreamOpt) -> Result<(), RunError> {
     let sid = SessionId::generate();
     let node = NodeStats::get();
 
-    let mut audio_header = AudioPacketHeader {
-        sid,
-        seq: 1,
-        pts: TimestampMicros(0),
-        dts: TimestampMicros(0),
-    };
-
-    let mut audio_buffer = Audio::write();
-
     let stream = device.build_input_stream(&config,
         {
             let protocol = Arc::clone(&protocol);
+            let mut encoder = PcmFloat32::new(protocol, sid);
+
             let mut initialized_thread = false;
-            move |mut data: &[f32], _: &InputCallbackInfo| {
+            move |data: &[f32], _: &InputCallbackInfo| {
                 if !initialized_thread {
                     crate::thread::set_name("bark/audio");
                     crate::thread::set_realtime_priority();
@@ -79,47 +75,8 @@ pub fn run(opt: StreamOpt) -> Result<(), RunError> {
                 // assert data only contains complete frames:
                 assert!(data.len() % usize::from(protocol::CHANNELS) == 0);
 
-                let mut timestamp = Timestamp::now().add(delay);
-
-                if audio_header.pts.0 == 0 {
-                    audio_header.pts = timestamp.to_micros_lossy();
-                }
-
-                while data.len() > 0 {
-                    // write some data to the waiting packet buffer
-                    let written = audio_buffer.write(data);
-
-                    // advance
-                    timestamp = timestamp.add(written);
-                    data = &data[written.as_buffer_offset()..];
-
-                    // if packet buffer is full, finalize it and send off the packet:
-                    if audio_buffer.valid_length() {
-                        // take packet writer and replace with new
-                        let audio = std::mem::replace(&mut audio_buffer, Audio::write());
-
-                        // finalize packet
-                        let audio_packet = audio.finalize(AudioPacketHeader {
-                            dts: TimestampMicros::now(),
-                            ..audio_header
-                        });
-
-                        // send it
-                        protocol.broadcast(audio_packet.as_packet()).expect("broadcast");
-
-                        // reset header for next packet:
-                        audio_header.seq += 1;
-                        audio_header.pts = timestamp.to_micros_lossy();
-                    }
-                }
-
-                // if there is data waiting in the packet buffer at the end of the
-                // callback, the pts we just calculated is valid. if the packet is
-                // empty, reset the pts to 0. this signals the next callback to set
-                // pts to the current time when it fires.
-                if audio_buffer.length() == SampleDuration::zero() {
-                    audio_header.pts.0 = 0;
-                }
+                let pts = Timestamp::now() + delay;
+                encoder.write(data, pts);
             }
         },
         move |err| {
