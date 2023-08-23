@@ -12,6 +12,7 @@ use cpal::OutputCallbackInfo;
 use cpal::traits::{HostTrait, DeviceTrait};
 use structopt::StructOpt;
 
+use crate::buffer::AudioBuffer;
 use crate::protocol::{self, Protocol};
 use crate::protocol::packet::{Audio, Time, PacketKind, StatsReply};
 use crate::protocol::types::{TimestampMicros, SessionId, ReceiverId, TimePhase};
@@ -35,13 +36,13 @@ struct QueueEntry {
     seq: u64,
     pts: Option<Timestamp>,
     consumed: SampleDuration,
-    packet: Option<Audio>,
+    audio: Option<AudioBuffer>,
 }
 
 impl QueueEntry {
     pub fn as_full_buffer(&self) -> &[f32] {
-        self.packet.as_ref()
-            .map(|packet| packet.buffer())
+        self.audio.as_ref()
+            .map(|packet| packet.samples())
             .unwrap_or(&[0f32; protocol::SAMPLES_PER_PACKET])
     }
 }
@@ -220,7 +221,7 @@ impl Receiver {
                         seq,
                         pts: None,
                         consumed: SampleDuration::zero(),
-                        packet: None,
+                        audio: None,
                     })
                 }
             }
@@ -230,7 +231,7 @@ impl Receiver {
                 seq: packet.header().seq,
                 pts: None,
                 consumed: SampleDuration::zero(),
-                packet: None,
+                audio: None,
             });
         }
 
@@ -242,7 +243,7 @@ impl Receiver {
         let slot = self.queue.get_mut(idx_for_packet).unwrap();
         assert!(slot.seq == packet.header().seq);
         slot.pts = stream.adjust_pts(Timestamp::from_micros_lossy(packet.header().pts));
-        slot.packet = Some(packet);
+        slot.audio = Some(packet.into_audio_buffer());
     }
 
     pub fn fill_stream_buffer(&mut self, mut data: &mut [f32], pts: Timestamp) {

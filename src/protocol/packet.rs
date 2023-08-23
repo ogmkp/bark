@@ -3,6 +3,7 @@ use std::mem::size_of;
 use bytemuck::Zeroable;
 pub use cpal::{SampleFormat, SampleRate, ChannelCount};
 
+use crate::buffer::{AudioBuffer, ByteBuffer};
 use crate::stats::node::NodeStats;
 use crate::stats::receiver::ReceiverStats;
 use crate::time::SampleDuration;
@@ -15,58 +16,22 @@ pub const MAX_PACKET_SIZE: usize =
     size_of::<types::AudioPacketHeader>() +
     size_of::<types::AudioPacketBuffer>();
 
-pub struct PacketBuffer {
-    raw: Box<[u8]>,
-    len: usize,
-}
-
-impl std::fmt::Debug for PacketBuffer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PacketBuffer {{ len = {}; {:x?} }}", self.len, &self.raw[0..self.len])
-    }
-}
-
-impl PacketBuffer {
-    pub fn allocate() -> Self {
-        PacketBuffer {
-            raw: bytemuck::allocation::zeroed_slice_box(MAX_PACKET_SIZE),
-            len: 0,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn set_len(&mut self, len: usize) {
-        self.len = len;
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.raw[0..self.len]
-    }
-
-    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.raw[0..self.len]
-    }
-
-    pub fn as_full_buffer_mut(&mut self) -> &mut [u8] {
-        &mut self.raw
-    }
+pub fn allocate_buffer() -> ByteBuffer {
+    ByteBuffer::allocate(MAX_PACKET_SIZE)
 }
 
 #[derive(Debug)]
-pub struct Packet(PacketBuffer);
+pub struct Packet(ByteBuffer);
 
 impl Packet {
     fn allocate(magic: Magic, len: usize) -> Self {
-        let mut packet = Packet(PacketBuffer::allocate());
+        let mut packet = Packet(allocate_buffer());
         packet.set_len(len);
         packet.header_mut().magic = magic;
         return packet;
     }
 
-    pub fn from_buffer(buffer: PacketBuffer) -> Option<Packet> {
+    pub fn from_buffer(buffer: ByteBuffer) -> Option<Packet> {
         let header_size = size_of::<types::PacketHeader>();
         if buffer.len() < header_size {
             None
@@ -75,7 +40,7 @@ impl Packet {
         }
     }
 
-    pub fn as_buffer(&self) -> &PacketBuffer {
+    pub fn as_buffer(&self) -> &ByteBuffer {
         &self.0
     }
 
@@ -91,13 +56,13 @@ impl Packet {
 
     pub fn header(&self) -> &types::PacketHeader {
         let header_size = size_of::<types::PacketHeader>();
-        let header_bytes = &self.0.as_bytes()[0..header_size];
+        let header_bytes = &self.0[0..header_size];
         bytemuck::from_bytes(header_bytes)
     }
 
     pub fn header_mut(&mut self) -> &mut types::PacketHeader {
         let header_size = size_of::<types::PacketHeader>();
-        let header_bytes = &mut self.0.as_bytes_mut()[0..header_size];
+        let header_bytes = &mut self.0[0..header_size];
         bytemuck::from_bytes_mut(header_bytes)
     }
 
@@ -113,12 +78,12 @@ impl Packet {
 
     pub fn as_bytes(&self) -> &[u8] {
         let header_size = size_of::<types::PacketHeader>();
-        &self.0.as_bytes()[header_size..]
+        &self.0[header_size..]
     }
 
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
         let header_size = size_of::<types::PacketHeader>();
-        &mut self.0.as_bytes_mut()[header_size..]
+        &mut self.0[header_size..]
     }
 }
 
@@ -159,10 +124,17 @@ impl Audio {
         Some(Audio(packet))
     }
 
+    pub fn into_audio_buffer(self) -> AudioBuffer {
+        let header_size = size_of::<types::AudioPacketHeader>();
+        let buffer = self.0.0.offset(header_size);
+        AudioBuffer::from_buffer(buffer)
+    }
+
     pub fn as_packet(&self) -> &Packet {
         &self.0
     }
 
+    #[allow(unused)]
     pub fn buffer(&self) -> &[f32] {
         let header_size = size_of::<types::AudioPacketHeader>();
         let buffer_bytes = &self.0.as_bytes()[header_size..];

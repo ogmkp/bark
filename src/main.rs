@@ -1,3 +1,4 @@
+mod buffer;
 mod device;
 mod config;
 mod protocol;
