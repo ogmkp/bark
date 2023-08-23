@@ -478,7 +478,7 @@ pub fn run(opt: ReceiveOpt) -> Result<(), RunError> {
     let node = NodeStats::get();
 
     if let Some(device) = &opt.device {
-        crate::audio::set_sink_env(device);
+        crate::device::set_sink_env(device);
     }
 
     let host = cpal::default_host();

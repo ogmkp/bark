@@ -1,4 +1,4 @@
-mod audio;
+mod device;
 mod config;
 mod protocol;
 mod receive;
