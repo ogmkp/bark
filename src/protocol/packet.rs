@@ -172,7 +172,7 @@ impl AudioWriter {
     }
 
     pub fn remaining(&self) -> SampleDuration {
-        SampleDuration::ONE_PACKET.sub(self.length())
+        SampleDuration::ONE_PACKET - self.length()
     }
 
     fn remaining_buffer_mut(&mut self) -> &mut [f32] {

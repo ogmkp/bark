@@ -29,3 +29,25 @@ pub fn config_for_device(device: &cpal::Device) -> Result<StreamConfig, RunError
         buffer_size: BufferSize::Fixed(buffer_size),
     })
 }
+
+pub fn size_of_element<T>(slice: &[T]) -> usize {
+    std::mem::size_of::<T>()
+}
+
+pub struct Sequence(u64);
+
+impl Sequence {
+    pub fn new() -> Self {
+        Sequence(1)
+    }
+
+    pub fn next(&mut self) -> u64 {
+        let seq = self.0;
+        self.0 += 1;
+        seq
+    }
+}
+
+pub fn frame_aligned_buffer(audio_buffer: &[f32]) -> bool {
+    (audio_buffer.len() % usize::from(protocol::CHANNELS)) == 0
+}

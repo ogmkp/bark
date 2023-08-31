@@ -1,11 +1,14 @@
-use std::ops::{Add, AddAssign};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
+
+use bytemuck::{Zeroable, Pod};
 
 use crate::protocol;
 use crate::protocol::packet;
 use crate::protocol::types::TimestampMicros;
 
 /// A timestamp with implicit denominator SAMPLE_RATE
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
+#[repr(transparent)]
 pub struct Timestamp(u64);
 
 impl Timestamp {
@@ -61,7 +64,8 @@ impl AddAssign<SampleDuration> for Timestamp {
 }
 
 /// A duration with implicit denominator SAMPLE_RATE
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
+#[repr(transparent)]
 pub struct SampleDuration(u64);
 
 impl SampleDuration {
@@ -69,6 +73,10 @@ impl SampleDuration {
 
     pub const fn zero() -> Self {
         SampleDuration(0)
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.0 == 0
     }
 
     pub const fn from_frame_count(samples: u64) -> Self {
@@ -102,11 +110,22 @@ impl SampleDuration {
     pub fn add(&self, other: SampleDuration) -> Self {
         SampleDuration(self.0.checked_add(other.0).unwrap())
     }
+}
 
-    pub fn sub(&self, other: SampleDuration) -> Self {
-        SampleDuration(self.0.checked_sub(other.0).expect("SampleDuration::sub would underflow!"))
+impl Sub<SampleDuration> for SampleDuration {
+    type Output = SampleDuration;
+
+    fn sub(self, rhs: SampleDuration) -> SampleDuration {
+        SampleDuration(self.0.checked_sub(rhs.0).unwrap())
     }
 }
+
+impl SubAssign<SampleDuration> for SampleDuration {
+    fn sub_assign(&mut self, rhs: SampleDuration) {
+        *self = self.sub(rhs)
+    }
+}
+
 
 /// The difference between two machine clocks in microseconds
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Default)]
@@ -141,6 +160,10 @@ impl ClockDelta {
 pub struct TimestampDelta(i64);
 
 impl TimestampDelta {
+    pub fn from_frames(frames: i64) -> Self {
+        TimestampDelta(frames)
+    }
+
     pub fn from_clock_delta_lossy(delta: ClockDelta) -> TimestampDelta {
         TimestampDelta((delta.0 * i64::from(protocol::SAMPLE_RATE.0)) / 1_000_000)
     }

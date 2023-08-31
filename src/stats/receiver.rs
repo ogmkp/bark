@@ -17,6 +17,12 @@ pub struct ReceiverStats {
     predict_offset: f64,
 }
 
+impl Default for ReceiverStats {
+    fn default() -> Self {
+        Self::zeroed()
+    }
+}
+
 pub enum StreamStatus {
     Seek,
     Sync,

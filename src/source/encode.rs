@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use crate::protocol::Protocol;
 use crate::protocol::packet::{Audio, AudioWriter};
+use crate::protocol::Protocol;
 use crate::protocol::types::{AudioPacketHeader, SessionId, TimestampMicros};
 use crate::time::{Timestamp, SampleDuration};
+use crate::util::Sequence;
 
 pub trait Encoder {
     fn write(&mut self, data: &[f32], pts: Timestamp);
@@ -78,19 +79,5 @@ struct Packet {
 impl Packet {
     pub fn new(pts: Timestamp) -> Self {
         Packet { buffer: Audio::write(), pts }
-    }
-}
-
-struct Sequence(u64);
-
-impl Sequence {
-    pub fn new() -> Self {
-        Sequence(1)
-    }
-
-    pub fn next(&mut self) -> u64 {
-        let seq = self.0;
-        self.0 += 1;
-        seq
     }
 }
